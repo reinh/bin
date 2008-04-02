@@ -1,0 +1,4 @@
+#!/bin/sh
+ruby script/plugin install svn://rubyforge.org/var/svn/rspec/trunk/rspec
+ruby script/plugin install svn://rubyforge.org/var/svn/rspec/trunk/rspec_on_rails
+ruby script/generate rspec

@@ -1,0 +1,167 @@
+# #!/usr/bin/env sh
+# 
+# #************************************************#
+# #                     edgie                      #
+# #           written by Rein Henrichs             #
+# #                 July 04, 2007                  #
+# #                                                #
+# #                    SOURCES:                    #
+# #          http://tinyurl.com/yn2px5             #
+# #     http://textsnippets.com/posts/show/375     #
+# #                                                #
+# #        Setup rails app with subversion,        #
+# #         capistrano, piston, and MySQL          #
+# #************************************************#
+# # http://railstips.org/2007/5/31/even-edgier-than-edge-railstips
+
+ARGS=2         # Script requires 2 arguments.
+E_BADARGS=65   # Wrong number of arguments passed to script.
+
+if [ $# -ne "$ARGS" ]
+# Test number of arguments to script (always a good idea).
+then
+  echo "Usage: `basename $0` app-name svn-repo-url"
+  exit $E_BADARGS
+fi
+
+APP_NAME=$1
+SVN_URL=$2
+SVN_URL_TO_REPOSITORY="${SVN_URL}/${APP_NAME}" # Assumes repo will have same name as app
+
+echo
+echo "Creating new rails application at $APP_NAME in svn repository $SVN_URL"
+exit
+
+if [ -d $APP_NAME ]; then
+  echo "Rails app $APP_NAME exists"
+  exit 1
+fi
+
+mkdir $APP_NAME || exit 1
+cd $APP_NAME || exit 1
+
+APP_DIR=`pwd`
+
+ruby ~/rails/trunk/railties/bin/rails $APP_NAME
+ln -s ~/rails/trunk ${APP_NAME}/vendor/rails
+
+rm $APP_NAME/log/* || exit 1
+
+mv $APP_NAME trunk || exit 1
+mkdir files branches tags
+
+## Create SVN Repo and do the initial import
+# 
+# echo "Creating new Subversion Repository at $SVN_URL_TO_REPOSITORY"
+# 
+# if [ -d $SVN_URL_TO_REPOSITORY ]; then
+#   echo "SVN Repository $SVN_URL_TO_REPOSITORY exists"
+#   exit 1
+# fi
+# 
+# if [ ! -d $SVN_URL ]; then
+#   mkdir -p $SVN_URL
+# fi
+# 
+# echo
+# echo "* Creating SVN Repository"
+# svnadmin create $SVN_URL_TO_REPOSITORY || exit 1
+echo
+echo "* Importing project into SVN"
+svn import . ${SVN_URL_TO_REPOSITORY} -m "Initial import" || exit 1
+
+echo
+echo "* Removing local copy"
+cd ..
+rm -rf ${APP_NAME} || exit 1
+echo
+echo "* Checking out working copy"
+svn co $SVN_URL_TO_REPOSITORY || exit 1
+cd ${APP_NAME}/trunk || exit 1
+
+## This section cleans up the svn repo so that you're not versioning things that shouldn't be versioned.
+echo
+echo "* Cleaning up SVN repo"
+svn remove log/*
+svn propset svn:ignore "*.log" log/
+
+svn remove tmp/
+svn propset svn:ignore "*" tmp/
+
+svn move config/database.yml config/database.example
+svn propset svn:ignore "database.yml" config/
+cp config/database.example config/database.yml # recreating unversioned database.yml
+
+for file in public/dispatch.*
+do
+	svn move $file ${file}.example
+	cp ${file}.example $file
+done
+
+svn propset svn:ignore "dispatch.*" public/ 
+svn update public/
+
+svn propset svn:ignore "*.sqlite" db/
+svn propset svn:ignore "*.sqlite3" db/
+svn commit -m 'Setting up svn:ingore on tmp, log, database.yml, dispatch.*'
+svn update
+
+## Installing Exception Notication plugin via piston if available or script/plugin
+svn up
+echo
+echo "* Installing plugins"
+if hash piston 2>&1 >/dev/null; then
+	# piston import http://dev.rubyonrails.org/svn/rails/plugins/exception_notification vendor/plugins/exception_notification
+	ruby script/plugin install svn://rubyforge.org/var/svn/rspec/tags/CURRENT/rspec
+    ruby script/plugin install svn://rubyforge.org/var/svn/rspec/tags/CURRENT/rspec_on_rails
+else
+	# ruby script/plugin install http://dev.rubyonrails.org/svn/rails/plugins/exception_notification
+	ruby script/plugin install svn://rubyforge.org/var/svn/rspec/tags/CURRENT/rspec
+    ruby script/plugin install svn://rubyforge.org/var/svn/rspec/tags/CURRENT/rspec_on_rails
+fi
+svn commit -m "Added ExceptionNotification plugin" 
+
+## Adding capistrano
+if hash cap 2>&1 >/dev/null; then
+	echo
+	echo "* Setting up Capistrano"
+	capify .
+	svn add config/deploy.rb
+	svn add Capfile
+	svn commit -m "Added Capistrano" 
+fi
+
+# Topfunky's hot tip: cache_svn
+#echo "* Adding cache_svn.rb from http://pastie.caboo.se/2973"
+#curl http://pastie.caboo.se/2973/download > config/cache_svn.rb
+#svn add config/cache_svn.rb
+#svn commit -m "Added cache_svn.rb from http://pastie.caboo.se/2973" 
+
+cd $APP_NAME/trunk
+
+echo
+echo "* Generating restful authentication"
+if [ -d $HOME/.rails/generators/authenticated ]; then
+	ruby script/generate authenticated user sessions --include-activation
+	svn ci -m "Adding restful authentication"
+	svn up
+fi
+
+echo
+echo "* Removing public/index.html"
+svn rm public/index.html
+
+echo "* Creating development and test databases"
+echo
+echo "Please enter your MySQL root user password"
+if hash mysql5 2>&1 >/dev/null; then
+	echo "create database ${APP_NAME}_development; create database ${APP_NAME}_test;" | mysql5 -u root -p
+	else
+	echo "create database ${APP_NAME}_development; create database ${APP_NAME}_test;" | mysql -u root -p
+fi
+echo
+echo "* Customise config/deploy.rb" 
+echo "* Start a codin..." 
+if hash mate 2>&1 >/dev/null; then
+	mate .
+fi

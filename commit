@@ -1,0 +1,44 @@
+#!/bin/bash
+echo "" 
+echo "Here's what we're going to do:" 
+echo " " 
+echo "Add the following files" 
+echo "-----------------------" 
+svn status | awk '/^\?/ {print $2}'
+echo " " 
+echo "Remove the following files" 
+echo "--------------------------" 
+svn status | awk '/^!/ {print $2}'
+echo " " 
+echo "Check in the following modified files" 
+echo "-------------------------------------" 
+svn status | awk '/^M/ {print $2}'
+echo " " 
+echo "Proceed with commit? [yn]" 
+read answer
+if [ "$answer" = "y" ]
+then
+    echo " " 
+    echo "Adding the following files" 
+    svn status | awk '/^\?/ {print $2}' | xargs svn add
+    echo " " 
+    echo "Removing the following files" 
+    svn status | awk '/^!/ {print $2}' | xargs svn remove
+    echo " " 
+    echo "Committing changes to repository" 
+    svn commit
+else 
+    echo " " 
+    echo "Commit cancelled" 
+fi
+
+echo " " 
+echo "Want to check for updates? [yn]" 
+read answer
+if [ "$answer" = "y" ]
+then
+    svn update
+else 
+    echo " " 
+    echo "Update cancelled" 
+fi

@@ -1,0 +1,20 @@
+#!/bin/sh 
+
+echo "git co master"
+git co master || exit $?
+echo "git svn rebase"
+git svn rebase  || exit $?
+echo "git co working"
+git co working  || exit $?
+echo "git rebase master"
+git rebase master  || exit $?
+echo "git co master"
+git co master  || exit $?
+echo "git merge working"
+git merge working  || exit $?
+echo "git svn rebase"
+git svn rebase  || exit $?
+echo "git svn dcommit"
+git svn dcommit || exit $?
+echo "git co working"
+git co working
